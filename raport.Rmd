@@ -1,0 +1,194 @@
+---
+title: "Analiza zbioru danych Protein Data Bank (PDB)"
+author: "Łukasz Kiszka"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    keep_md: yes
+    toc: yes
+---
+
+
+# Posumowanie analizy zbioru danych
+
+gfgfd
+
+# Wykorzystane biblioteki
+
+
+```{r setSeed, warning=FALSE, message=FALSE, echo=FALSE}
+
+set.seed(20)
+
+```
+
+```{r libraryLists, warning=FALSE, message=FALSE}
+
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(ggExtra)
+```
+
+# Wczytanie danych z pliku oraz wstępne czyszczenie danych
+
+Wczytanie danych z pliku. Za pomocą heurystyki wyznaczam typy danych.
+
+```{r readData, results='hide', cache=TRUE}
+
+initial <- read.table("all_summary.txt", nrows = 15000, sep = ';', comment.char = "", na.strings = 'nan', header = TRUE)
+
+classes <- sapply(initial, class)
+rawData <- read.table("all_summary.txt", sep = ';', comment.char = "", na.strings = 'nan', header = TRUE, colClasses = classes)
+```
+
+Załadowano `r nrow(rawData)` wierszy, które mają `r ncol(rawData)` zmiennych.
+
+Usuwanie z danych wiersze posiadające wartość zmiennej res_name równą: “DA”,“DC”,“DT”, “DU”, “DG”, “DI”,“UNK”, “UNX”, “UNL”, “PR”, “PD”, “Y1”, “EU”, “N”, “15P”, “UQ”, “PX4” lub “NAN
+
+```{r removeRes_name, results='hide'}
+selectedData  <-  selectedData  <-  rawData %>% filter(!(res_name %in% c('DA','DC','DT', 'DU', 'DG', 'DI','UNK', 'UNX', 'UNL', 'PR', 'PD', 'Y1', 'EU', 'N', '15P', 'UQ', 'PX4', 'NAN')))
+
+```
+
+Unikatowe pary wartości (pdb_code, res_name)
+
+```{r unique_pdb_code_res_name, results='hide'}
+
+unique_pdb_code_res_name  <-  selectedData[!duplicated(select(selectedData, pdb_code, res_name)),]
+
+```
+
+Unikatowych par wartości pdb_code, res_name jest `r nrow(unique_pdb_code_res_name)`.
+
+
+# Podsumowanie wartości w kolumnach
+
+```{r summaryColumn, echo=FALSE, cache=TRUE}
+
+kable(summary(unique_pdb_code_res_name))
+
+```
+
+# Korelacjie między zmiennymi
+
+todo
+
+#Liczba przypadków dla każdej z klas (res_name)
+
+```{r res_name_count, echo=FALSE, cache=TRUE}
+
+res_name_count  <- unique_pdb_code_res_name %>% 
+                    group_by(res_name) %>% 
+                    summarise(count = n()) %>% 
+                    arrange(desc(count))
+
+summary_res_name_count = summarise(group_by(res_name_count, count), col = paste(res_name, collapse = ", "))
+kable(summary_res_name_count)
+
+```
+
+# Wykresy rozkładu liczby atomów i elektronów
+
+
+##Rozkład atomów
+
+```{r atomHistogram, echo=FALSE}
+
+ggplot(unique_pdb_code_res_name, aes(x=local_res_atom_non_h_count)) + geom_histogram(binwidth = 1, fill=I("white"), col=I("black")) + labs(title="Histogram for local_res_atom_non_h_count")
+
+```
+
+
+##Rozkład elektronów
+
+```{r electronHistogram, echo=FALSE}
+
+ggplot(unique_pdb_code_res_name, aes(x=local_res_atom_non_h_electron_sum)) + geom_histogram(binwidth = 8, fill=I("white"), col=I("black")) + labs(title="Histogram for local_res_atom_non_h_electron_sum")
+
+```
+
+
+# Próba odtworzenia wykresu z wymagań
+
+```{r chart, echo=FALSE, warning=FALSE, cache=TRUE}
+
+p_main  <- ggplot(unique_pdb_code_res_name, aes(x=local_res_atom_non_h_electron_sum, y=local_res_atom_non_h_count)) + stat_density2d(aes(fill=..level..), bins=30, geom="polygon") + scale_fill_gradientn(colours=c("darkslateblue", "yellow", "red")) + theme(legend.position = "none", axis.title = element_blank(), panel.background = element_rect(fill = "darkslateblue"), panel.grid=element_blank(), panel.border=element_blank()) + scale_y_continuous(expand = c(0, 0), limits = c(0, 100), breaks=seq(0,100, by=20)) + scale_x_continuous(expand = c(0, 0), limits = c(0, 650), breaks=seq(0,650, by=100))
+
+hist_x  <- ggplot(unique_pdb_code_res_name, aes(x=local_res_atom_non_h_electron_sum)) + geom_histogram(binwidth = 6.5, fill=I("red"), col=I("black")) + xlim(c(0,650)) + theme(axis.text = element_blank(), axis.title = element_blank(), line = element_blank(), panel.background = element_blank())
+
+hist_y  <- ggplot(unique_pdb_code_res_name, aes(x=dict_atom_non_h_count)) + geom_histogram(binwidth = 1, fill=I("red"), col=I("black")) + xlim(c(0,100)) + coord_flip() + theme(axis.text = element_blank(), axis.title = element_blank(), line = element_blank(), panel.background = element_blank())
+
+p_empty <- ggplot(unique_pdb_code_res_name, aes(x = local_res_atom_non_h_electron_sum, y = local_res_atom_non_h_count)) + geom_blank() + theme(axis.text = element_blank(), axis.title = element_blank(), line = element_blank(), panel.background = element_blank())
+
+gridExtra::grid.arrange(hist_x, p_empty, p_main, hist_y, ncol = 2, nrow = 2, widths = c(3, 1), heights = c(1, 3))
+
+```
+
+# Klasy z największą niezgodnością liczby atomów
+
+
+```{r incompatibility_atom, echo=FALSE}
+
+incompatibility_atom_group <-  unique_pdb_code_res_name %>% 
+                                select(res_name, as.numeric(local_res_atom_non_h_count), as.numeric(dict_atom_non_h_count)) %>%
+                                group_by(res_name) %>%
+                                summarise_each(funs(sum))
+
+incompatibility_atom  <- incompatibility_atom_group %>% 
+                          mutate(odds = abs(local_res_atom_non_h_count - dict_atom_non_h_count)) %>%
+                          arrange(desc(odds))
+
+```
+
+`r kable(head(incompatibility_atom, 10))`
+
+
+# Klasy z największą niezgodnością liczby elektronów
+
+```{r incompatibility_electron, echo=FALSE}
+
+incompatibility_electron_group <-  unique_pdb_code_res_name %>% 
+                                select(res_name, as.numeric(local_res_atom_non_h_electron_sum), as.numeric(dict_atom_non_h_electron_sum)) %>%
+                                group_by(res_name) %>%
+                                summarise_each(funs(sum))
+
+incompatibility_electron  <- incompatibility_electron_group %>% 
+                          mutate(odds = abs(local_res_atom_non_h_electron_sum - dict_atom_non_h_electron_sum)) %>%
+                          arrange(desc(odds))
+
+```
+
+`r kable(head(incompatibility_electron, 10))`
+
+# Rozkład zmiennych part_01
+
+```{r part_01_chart, echo=FALSE, message=FALSE}
+
+part_01_data <- unique_pdb_code_res_name %>% select(part_01_blob_electron_sum:part_01_density_sqrt_E3)
+##part_01_data[!is.na(part_01_data)]
+
+
+for (i in 1:length(part_01_data)) {
+
+  i_column <- part_01_data[,i]
+  i_column_without_NA <-  i_column[!is.na(i_column)]
+  
+  m <- mean(i_column_without_NA)
+  
+    p <- ggplot() + aes(i_column_without_NA) + geom_histogram(fill=I("white"), col=I("black")) + xlab(names(part_01_data[i])) + labs(title=paste("Histogram of ", names(part_01_data[i]))) + geom_vline(xintercept=m, color="red", linetype="dashed", size=1) + annotate("text", x=m, y=-300, label=c(m), hjust=-0.1, color="red")
+  
+  print(p)
+  
+
+
+}
+
+```
+
+# Przewidywanie liczby elektronów i atomów na podstawie innych kolumn
+# Klasyfikator
+
+
+
+
