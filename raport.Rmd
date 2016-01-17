@@ -1,24 +1,49 @@
 ---
 title: "Analiza zbioru danych Protein Data Bank (PDB)"
 author: "Łukasz Kiszka"
-date: "`r format(Sys.time(), '%d %B, %Y')`"
-output: 
+date: '`r Sys.Date()`'
+output:
   html_document:
     keep_md: yes
-    toc: yes
 ---
 
+### Spis treści
 
+1. [Podsumowanie analizy danych](#1)
+2. [Wykorzystane biblioteki](#2)
+3. [Wczytanie danych z pliku oraz wstępne czyszczenie danych](#3)
+4. [Podsumowanie wartości w kolumnach](#4)
+5. [Korelacje między zmiennymi](#5)
+6. [Liczba przypadków dla każdej z klas (res_name)](#6)
+7. [Wykresy rozkładu liczby atomów i elektronów](#7)
+8. [Próba odtworzenia wykresu z wymagań](#8)
+9. [Klasy z największą niezgodnością liczby atomów](#9)
+10. [Klasy z największą niezgodnością liczby elektronów](#10)
+11. [Rozkład wartości kolumn part_01](#11)
+12. [Przewidywanie liczby elektronów i atomów na podstawie innych kolumn](#12)
+13. [Klasyfikator](#13)
+
+
+#<a name="1"></a>
 # Posumowanie analizy zbioru danych
 
-gfgfd
 
+
+W danych znajdowało się bardzo dużo wartości NA. W obliczeniach w zależności co było liczone zostały one zamienione lub pominięte - szczególnie podczas obliczania korelacji (sposob obsługi wartości NA podczas obliczania korelacji został opisany w punkcie 5).
+
+Zauważono także, że kolumny fo_col	fc_col zawierają tylko 1 wartość. Powinny one zostać usunięte ze zbioru przy próbie utworzenia klasyfikatora.
+
+Podczas rysowania wykresów dla kolumn zaczynających się od part_01 zauważono, że dużo wartości jest skupionych w okolicy zera.
+
+Została podjęta próba wykonania klasyfikatora, ale niestety nie zakończyła się powodzeniem. W ostatnim punkcie zostały opisane podjęte kroki, które zostały podjęte oraz napotkane blędy.
+
+#<a name="2"></a>
 # Wykorzystane biblioteki
 
 
 ```{r setSeed, warning=FALSE, message=FALSE, echo=FALSE}
 
-set.seed(20)
+set.seed(26)
 
 ```
 
@@ -28,8 +53,13 @@ library(knitr)
 library(ggplot2)
 library(dplyr)
 library(ggExtra)
+library(caret)
+library(corrplot)
+
+
 ```
 
+#<a name="3"></a>
 # Wczytanie danych z pliku oraz wstępne czyszczenie danych
 
 Wczytanie danych z pliku. Za pomocą heurystyki wyznaczam typy danych.
@@ -61,33 +91,58 @@ unique_pdb_code_res_name  <-  selectedData[!duplicated(select(selectedData, pdb_
 
 Unikatowych par wartości pdb_code, res_name jest `r nrow(unique_pdb_code_res_name)`.
 
-
+#<a name="4"></a>
 # Podsumowanie wartości w kolumnach
 
 ```{r summaryColumn, echo=FALSE, cache=TRUE}
 
-kable(summary(unique_pdb_code_res_name))
+kable(summary(rawData))
 
 ```
 
-# Korelacjie między zmiennymi
+#<a name="5"></a>
+# Korelacje między zmiennymi
 
-todo
+Do obliczenia korelacji użytko funkcji >cor< z parametrem >use = "pairwise.complete.obs<, który ignoruje w obliczeniach korelacji dla danej pary wartości NA.
 
+Podczas obliczania korelacji zauważono, że dla wszystkich kolumn part_XX jest ona bardzo podobna. W przedstawionej graficznej reprezentacji korelacji zabrano zmienne z part_01, by ograniczyć liczbę danych. Poza kolumnami part_01 w macierzy widzimy kolumy local_res_atom_non_h_electron_sum, local_res_atom_non_h_count, solvent_mask_count, void_mask_count, modeled_mask_count, solvent_ratio. Wybrano takie kolumny, ponieważ te kolumny będą brały w wyznaczaniu klasyfikatora.
+
+
+```{r cor_prepare_data_set, echo=FALSE, cache=TRUE}
+
+data <- rawData %>% select(local_res_atom_non_h_count, local_res_atom_non_h_electron_sum, part_01_blob_electron_sum:part_01_density_sqrt_E3, solvent_mask_count:solvent_ratio)
+
+```
+
+Zmienne zostały posortowane wg algorytmu "FPC" (First Principal Component).
+
+```{r cor_calculate, echo=TRUE, cache=TRUE}
+
+correlation_data  <- cor(data, use = "pairwise.complete.obs")
+corrplot(correlation_data, method = "color", tl.cex = 0.4, order = "FPC", tl.col="black")
+
+
+```
+
+Zbyt duża ilość zmiennych niestety psuje czytelność powyższej macierzy. Diagram jest bardziej czytelny w postaci pliku pdf. Plik pdf reprezentujący macierz został dodany do repozytorium po nazwą >corrplot_results.pdf<. Proszę o zapoznanie się z jego zawartością podczas analizy raportu.
+
+
+#<a name="6"></a>
 #Liczba przypadków dla każdej z klas (res_name)
 
 ```{r res_name_count, echo=FALSE, cache=TRUE}
 
 res_name_count  <- unique_pdb_code_res_name %>% 
-                    group_by(res_name) %>% 
+                    group_by(res_name) %>%
                     summarise(count = n()) %>% 
                     arrange(desc(count))
 
-summary_res_name_count = summarise(group_by(res_name_count, count), col = paste(res_name, collapse = ", "))
+summary_res_name_count = summarise(group_by(res_name_count, count), class = paste(res_name, collapse = ", "))
 kable(summary_res_name_count)
 
 ```
 
+#<a name="7"></a>
 # Wykresy rozkładu liczby atomów i elektronów
 
 
@@ -108,7 +163,7 @@ ggplot(unique_pdb_code_res_name, aes(x=local_res_atom_non_h_electron_sum)) + geo
 
 ```
 
-
+#<a name="8"></a>
 # Próba odtworzenia wykresu z wymagań
 
 ```{r chart, echo=FALSE, warning=FALSE, cache=TRUE}
@@ -125,6 +180,7 @@ gridExtra::grid.arrange(hist_x, p_empty, p_main, hist_y, ncol = 2, nrow = 2, wid
 
 ```
 
+#<a name="9"></a>
 # Klasy z największą niezgodnością liczby atomów
 
 
@@ -143,7 +199,7 @@ incompatibility_atom  <- incompatibility_atom_group %>%
 
 `r kable(head(incompatibility_atom, 10))`
 
-
+#<a name="10"></a>
 # Klasy z największą niezgodnością liczby elektronów
 
 ```{r incompatibility_electron, echo=FALSE}
@@ -161,12 +217,18 @@ incompatibility_electron  <- incompatibility_electron_group %>%
 
 `r kable(head(incompatibility_electron, 10))`
 
-# Rozkład zmiennych part_01
+#<a name="11"></a>
+# Rozkład wartości kolumn part_01
 
-```{r part_01_chart, echo=FALSE, message=FALSE}
+Sekcja przedstawia rozkład wartości wszystkich kolumn zaczynających się od part_01
+
+Usunięto wartości NA dla każdej kolumny z osobna. Nie zostały zamienione na wartość 0 by nie zaburzać rozkładu zmiennych.
+
+Na wykresach zaznaczono średnią wartość zmiennej (w formie graficznej oraz liczbowej).
+
+```{r part_01_chart, echo=FALSE, message=FALSE, cache=TRUE}
 
 part_01_data <- unique_pdb_code_res_name %>% select(part_01_blob_electron_sum:part_01_density_sqrt_E3)
-##part_01_data[!is.na(part_01_data)]
 
 
 for (i in 1:length(part_01_data)) {
@@ -186,9 +248,31 @@ for (i in 1:length(part_01_data)) {
 
 ```
 
-# Przewidywanie liczby elektronów i atomów na podstawie innych kolumn
-# Klasyfikator
+#<a name="12"></a>
+#Przewidywanie liczby elektronów i atomów na podstawie innych kolumn
 
+```{r predict part_01_chart, cache=TRUE}
+lm_data <- rawData
+lm_data[is.na(lm_data)] <- 0
+lm_data <- lm_data[sapply(lm_data, is.numeric)]
 
+lm_atom_model <- lm(local_res_atom_non_h_count ~ ., lm_data)
+lm_atom_summary <- summary(lm_atom_model)
 
+lm_electron_model <- lm(local_res_atom_non_h_electron_sum ~ ., lm_data)
+lm_electron_summary <- summary(lm_electron_model)
 
+```
+
+Miary dla liczby atomów:<br />
+R^2: `r lm_atom_summary$r.squared`<br />
+RMSEL `r lm_atom_summary$sigma`<br />
+
+Miary dla liczby elektronów:<br />
+R^2: `r lm_electron_summary$r.squared`<br />
+RMSEL `r lm_electron_summary$sigma`<br />
+
+#<a name="13"></a>
+#Klasyfikator
+
+Nie doszacowałem długości czasu potrzebnego do budowy klasyfikatora. Podczas prób budowy klasyfikatora ze zbioru danych chciałem wybrać klasy res_name, które mają minimum 50 wystąpień w pliku a następnie na ich podstawie zbudować klasyfikator. Do budowy klasyfikatora chciałem użyć tylko wartośći, które zostały obliczone na podstawie ligandu. Niestety coś robiłem źle, ponieważ dostawałem błąd braku pamięci. Przypuszczam, że rozwiązaniem byłobby zawężenie danych dla, które trafiały do klasyfikatora. Niestety nie zdążyłem poprawić swojego rozwiązania. 
