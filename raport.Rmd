@@ -1,7 +1,7 @@
 ---
 title: "Analiza zbioru danych Protein Data Bank (PDB)"
 author: "Łukasz Kiszka"
-date: `r format(Sys.time(), '%d %B %Y %H:%M')`
+date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
   html_document:
     keep_md: yes

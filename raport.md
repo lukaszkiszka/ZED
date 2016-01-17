@@ -1,6 +1,6 @@
 # Analiza zbioru danych Protein Data Bank (PDB)
 Łukasz Kiszka  
-`r Sys.Date()`  
+`r format(Sys.time(), '%d %B, %Y')`  
 
 ### Spis treści
 
