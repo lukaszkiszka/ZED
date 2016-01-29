@@ -124,7 +124,7 @@ corrplot(correlation_data, method = "color", tl.cex = 0.4, order = "FPC", tl.col
 
 ```
 
-Zbyt duża ilość zmiennych niestety psuje czytelność powyższej macierzy. Diagram jest bardziej czytelny w postaci pliku pdf. Plik pdf reprezentujący macierz został dodany do repozytorium po nazwą >corrplot_results.pdf<. Proszę o zapoznanie się z jego zawartością podczas analizy raportu.
+Zbyt duża ilość zmiennych niestety psuje czytelność powyższej macierzy. Diagram jest bardziej czytelny w postaci pliku pdf. Plik pdf reprezentujący macierz został dodany do repozytorium po nazwą [corrplot_results.pdf](https://github.com/lukaszkiszka/ZED/blob/master/corrplot_results.pdf). Proszę o zapoznanie się z jego zawartością podczas analizy raportu.
 
 
 #<a name="6"></a>
@@ -275,4 +275,6 @@ RMSEL `r lm_electron_summary$sigma`<br />
 #<a name="13"></a>
 #Klasyfikator
 
-Nie doszacowałem długości czasu potrzebnego do budowy klasyfikatora. Podczas prób budowy klasyfikatora ze zbioru danych chciałem wybrać klasy res_name, które mają minimum 50 wystąpień w pliku a następnie na ich podstawie zbudować klasyfikator. Do budowy klasyfikatora chciałem użyć tylko wartośći, które zostały obliczone na podstawie ligandu. Niestety coś robiłem źle, ponieważ dostawałem błąd braku pamięci. Przypuszczam, że rozwiązaniem byłobby zawężenie danych dla, które trafiały do klasyfikatora. Niestety nie zdążyłem poprawić swojego rozwiązania. 
+Podczas prób budowy klasyfikatora ze zbioru danych wybrano klasy res_name, które mają minimum 50 wystąpień w pliku a następnie na ich podstawie zbudować klasyfikator. Do budowy klasyfikatora użyłem tylko wartośći, które zostały obliczone na podstawie ligandu.
+
+Użyto metody powtarzanej oceny krżyżowej, a model klasyfikacyjny powstał zgodnie z alogrytmem Random Forest.
